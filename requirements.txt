@@ -4,7 +4,7 @@
 # LangChain 主模块 + 社区加载器
 langchain==0.0.349 
 langchain-openai>=0.0.2
-
+langchain-community==0.0.22
 openai>=1.0.0
 python-dotenv>=1.0.0
 streamlit>=1.29.0
