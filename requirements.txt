@@ -7,7 +7,7 @@ langchain-openai>=0.0.2
 langchain-community>=0.0.22  # Make sure this is installed
 openai>=1.0.0
 python-dotenv>=1.0.0
-streamlit>=1.29.0
+streamlit>=1.45
 
 #############################
 # Vector stores & embeddings#
@@ -49,4 +49,3 @@ networkx>=3.2
 ##################
 soundfile>=0.12
 streamlit-webrtc>=0.46
-st-audiorecorder==0.1.9
