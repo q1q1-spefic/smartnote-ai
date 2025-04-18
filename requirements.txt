@@ -23,16 +23,3 @@ pytesseract>=0.3.10
 beautifulsoup4>=4.12.2
 requests
 
-openai
-streamlit
-soundfile
-requests
-numpy
-matplotlib
-networkx
-plotly
-langchain
-langchain-community
-langchain-openai
-streamlit-webrtc
-streamlit-audio-recorder
