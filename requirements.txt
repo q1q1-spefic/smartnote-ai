@@ -49,4 +49,4 @@ networkx>=3.2
 ##################
 soundfile>=0.12
 streamlit-webrtc>=0.46
-streamlit-audio-recorder>=0.1.6
+st-audiorecorder==0.1.9
