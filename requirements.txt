@@ -22,3 +22,6 @@ pytesseract>=0.3.10
 # 网页处理
 beautifulsoup4>=4.12.2
 requests
+pypdf>=3.13.0         
+markdown>=3.4          
+html2text>=2020.1.16 
