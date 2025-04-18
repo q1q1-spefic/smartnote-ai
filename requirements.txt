@@ -1,25 +1,53 @@
-# requirements.txt
+# ============================
+# Core dependencies
+# ============================
 
-# 核心依赖
-langchain>=0.1.0
+# Pin langchain to a known-compatible version
+langchain==0.0.320
 langchain-openai>=0.0.2
 openai>=1.0.0
+
 faiss-cpu>=1.7.4
 tiktoken>=0.5.1
 pymupdf>=1.22.5
 streamlit>=1.29.0
 python-dotenv>=1.0.0
 
-# 嵌入和向量存储
+# ============================
+# Embeddings & Vector Store
+# ============================
+
 sentence-transformers>=2.2.2
 chromadb>=0.4.18
 
-# 文档处理
+# ============================
+# Document Processing
+# ============================
+
 unstructured>=0.10.30
 pdf2image>=1.16.3
 pytesseract>=0.3.10
 
-# 网页处理
-beautifulsoup4>=4.12.2
-requests
+# ============================
+# Web Scraping & HTTP
+# ============================
 
+beautifulsoup4>=4.12.2
+requests>=2.28.0
+
+# ============================
+# Audio & Voice
+# ============================
+
+streamlit-audio-recorder>=0.1.0
+streamlit-webrtc>=0.44.0
+soundfile>=0.12.1
+
+# ============================
+# Data & Visualization
+# ============================
+
+numpy>=1.23.0
+matplotlib>=3.6.0
+networkx>=3.0
+plotly>=5.13.0
