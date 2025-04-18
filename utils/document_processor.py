@@ -1,29 +1,25 @@
-# utils/document_processor.py
 import os
 from typing import List, Optional
 
-# Try to import from langchain_community first (newer versions)
+# Use a single try/except block to handle all imports
 try:
+    # Try newer LangChain structure first
     from langchain_community.document_loaders import (
         PyPDFLoader,
         TextLoader,
         UnstructuredMarkdownLoader,
         WebBaseLoader,
     )
-except ModuleNotFoundError:  # Fall back to langchain<0.1
+    from langchain_core.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_core.documents import Document
+except ModuleNotFoundError:
+    # Fall back to older LangChain structure
     from langchain.document_loaders import (
         PyPDFLoader,
         TextLoader,
         UnstructuredMarkdownLoader,
         WebBaseLoader,
     )
-
-# Similarly for text_splitter and schema
-try:
-    from langchain_core.text_splitter import RecursiveCharacterTextSplitter
-    from langchain_core.documents import Document
-except ModuleNotFoundError:
-    # For older langchain versions
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     from langchain.schema import Document
 
