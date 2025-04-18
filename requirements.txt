@@ -2,13 +2,19 @@
 
 # 核心依赖
 langchain>=0.1.0
+langchain-community>=0.0.19
 langchain-openai>=0.0.2
 openai>=1.0.0
 faiss-cpu>=1.7.4
 tiktoken>=0.5.1
 pymupdf>=1.22.5
-streamlit>=1.29.0
+streamlit>=1.30
 python-dotenv>=1.0.0
+
+numpy>=1.26
+matplotlib>=3.8
+plotly>=5.18
+networkx>=3.2
 
 # 嵌入和向量存储
 sentence-transformers>=2.2.2
@@ -19,9 +25,14 @@ unstructured>=0.10.30
 pdf2image>=1.16.3
 pytesseract>=0.3.10
 
+soundfile>=0.12
+streamlit-webrtc>=0.46
+streamlit-audio-recorder>=0.1.6
+st.audio_recorder>=0.0.2
+
 # 网页处理
 beautifulsoup4>=4.12.2
-requests
+requests>=2.31
 pypdf>=3.13.0         
 markdown>=3.4          
 html2text>=2020.1.16 
