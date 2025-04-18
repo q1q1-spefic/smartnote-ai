@@ -1,0 +1,12 @@
+AI Study/
+├── app/
+│   └── app.py            # Streamlit应用主文件
+├── data/                 # 数据存储目录
+│   └── vector_db/        # 向量数据库存储目录
+├── utils/
+│   ├── document_processor.py  # 文档处理模块
+│   ├── vector_store.py        # 向量存储模块
+│   └── query_engine.py        # 查询引擎模块
+├── .env                  # 环境变量配置文件
+├── run.py                # 运行脚本
+└── requirements.txt      # 依赖包列表
