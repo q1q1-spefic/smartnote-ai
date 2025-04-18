@@ -2,6 +2,20 @@
 
 import os
 from typing import List, Optional
+try:
+    from langchain_community.document_loaders import (
+        PyPDFLoader,
+        TextLoader,
+        UnstructuredMarkdownLoader,
+        WebBaseLoader,
+    )
+except ModuleNotFoundError:        # 兼容 langchain<0.1
+    from langchain.document_loaders import (
+        PyPDFLoader,
+        TextLoader,
+        UnstructuredMarkdownLoader,
+        WebBaseLoader,
+    )
 
 from langchain.document_loaders import (
     PyPDFLoader,
