@@ -1,7 +1,8 @@
 # utils/document_processor.py
-
 import os
 from typing import List, Optional
+
+# Try to import from langchain_community first (newer versions)
 try:
     from langchain_community.document_loaders import (
         PyPDFLoader,
@@ -9,7 +10,7 @@ try:
         UnstructuredMarkdownLoader,
         WebBaseLoader,
     )
-except ModuleNotFoundError:        # 兼容 langchain<0.1
+except ModuleNotFoundError:  # Fall back to langchain<0.1
     from langchain.document_loaders import (
         PyPDFLoader,
         TextLoader,
@@ -17,14 +18,14 @@ except ModuleNotFoundError:        # 兼容 langchain<0.1
         WebBaseLoader,
     )
 
-from langchain.document_loaders import (
-    PyPDFLoader,
-    TextLoader,
-    UnstructuredMarkdownLoader,
-    WebBaseLoader
-)
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+# Similarly for text_splitter and schema
+try:
+    from langchain_core.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_core.documents import Document
+except ModuleNotFoundError:
+    # For older langchain versions
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.schema import Document
 
 class DocumentProcessor:
     """处理不同类型文档的类"""
