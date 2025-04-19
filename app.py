@@ -67,10 +67,6 @@ st.markdown("Upload your documents, create your personal knowledge base, and let
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # API密钥设置 - 修改此部分
-
-    if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
     
     # 嵌入模型选择
     embedding_type = st.selectbox(
