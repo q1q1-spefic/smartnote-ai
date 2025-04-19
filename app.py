@@ -19,6 +19,10 @@ from utils.document_processor import DocumentProcessor
 from utils.vector_store import VectorStore
 from utils.query_engine import QueryEngine
 
+# 导入新的模块 - 测验生成器和闪卡生成器
+from utils.quiz_generator import QuizGenerator
+from utils.flashcard_generator import FlashcardGenerator
+
 # 尝试导入语音交互模块
 voice_interaction_available = False
 try:
@@ -128,9 +132,21 @@ if 'voice_interaction' not in st.session_state:
     st.session_state.voice_interaction = None
 if 'knowledge_graph' not in st.session_state:
     st.session_state.knowledge_graph = None
+if 'quiz_generator' not in st.session_state:
+    st.session_state.quiz_generator = None
+if 'flashcard_generator' not in st.session_state:
+    st.session_state.flashcard_generator = None
+if 'quiz_results' not in st.session_state:
+    st.session_state.quiz_results = None
+if 'current_quiz' not in st.session_state:
+    st.session_state.current_quiz = None
+if 'quiz_answers' not in st.session_state:
+    st.session_state.quiz_answers = {}
+if 'quiz_submitted' not in st.session_state:
+    st.session_state.quiz_submitted = False
 
 # 创建标签页 - 根据可用模块调整
-tabs = ["📚 Upload Documents", "❓ Q&A", "📊 Knowledge Analysis"]
+tabs = ["📚 Upload Documents", "❓ Q&A", "📊 Knowledge Analysis", "📝 Quiz", "🔄 Learning Reinforcement"]
 if knowledge_graph_available:
     tabs.append("🔍 Knowledge Graph")
 
@@ -138,9 +154,11 @@ all_tabs = st.tabs(tabs)
 tab1 = all_tabs[0]  # 上传文档
 tab2 = all_tabs[1]  # 问答
 tab3 = all_tabs[2]  # 知识分析
-tab4 = all_tabs[3] if knowledge_graph_available else None  # 知识图谱（如果可用）
+tab4 = all_tabs[3]  # 测验
+tab5 = all_tabs[4]  # 学习强化
+tab6 = all_tabs[5] if knowledge_graph_available else None  # 知识图谱（如果可用）
 
-# 标签页1：上传文档
+
 with tab1:
     st.header("📚 Upload Documents")
     
@@ -264,6 +282,16 @@ with tab1:
                             except Exception as e:
                                 st.warning(f"Error initializing voice interaction: {str(e)}")
                         
+                        # 初始化测验生成器
+                        if os.environ.get("OPENAI_API_KEY"):
+                            try:
+                                from langchain.chat_models import ChatOpenAI
+                                llm = ChatOpenAI(model_name=model_name, openai_api_key=os.environ.get("OPENAI_API_KEY"))
+                                st.session_state.quiz_generator = QuizGenerator(llm=llm)
+                                st.session_state.flashcard_generator = FlashcardGenerator(llm=llm)
+                            except Exception as e:
+                                st.warning(f"Error initializing quiz and flashcard generators: {str(e)}")
+                        
                         st.success(f"Successfully processed {len(all_documents)} document chunks!")
                     else:
                         st.warning("No document content was processed. Please check if the file or URL is valid.")
@@ -321,6 +349,16 @@ with tab1:
                                 st.session_state.voice_interaction = VoiceInteraction(openai_api_key=os.environ.get("OPENAI_API_KEY"))
                             except Exception as e:
                                 st.warning(f"Error initializing voice interaction: {str(e)}")
+                        
+                        # 初始化测验生成器和闪卡生成器
+                        if os.environ.get("OPENAI_API_KEY"):
+                            try:
+                                from langchain.chat_models import ChatOpenAI
+                                llm = ChatOpenAI(model_name=model_name, openai_api_key=os.environ.get("OPENAI_API_KEY"))
+                                st.session_state.quiz_generator = QuizGenerator(llm=llm)
+                                st.session_state.flashcard_generator = FlashcardGenerator(llm=llm)
+                            except Exception as e:
+                                st.warning(f"Error initializing quiz and flashcard generators: {str(e)}")
                         
                         st.success("Successfully loaded knowledge base!")
         except Exception as e:
@@ -461,10 +499,11 @@ with tab3:
                         
                 except Exception as e:
                     st.error(f"Error during analysis: {str(e)}")
-
+                    
+                    
 # 标签页4：知识图谱 - 仅当模块可用时显示
-if knowledge_graph_available and tab4:
-    with tab4:
+if knowledge_graph_available and tab6:
+    with tab6:
         st.header("🔍 Knowledge Graph")
         
         # 检查是否有向量数据库和API密钥
@@ -542,6 +581,505 @@ if knowledge_graph_available and tab4:
                 How to use: Enter a topic or keyword, and the system will retrieve relevant content from your knowledge base, extract entities and relationships, and display them as an interactive graph.
                 """)
 
-# 页脚
+# 标签页4：测验
+with tab4:
+    st.header("📝 Quiz")
+    
+    # 检查是否有向量数据库和API密钥
+    if not st.session_state.documents_added:
+        st.info("Please upload or load documents first before generating quizzes.")
+    elif not os.environ.get("OPENAI_API_KEY"):
+        st.warning("Generating quizzes requires an OpenAI API key. Please provide one in the configuration.")
+    elif not st.session_state.quiz_generator:
+        st.warning("Quiz module not initialized. Please ensure API key is correct and reload the knowledge base.")
+    else:
+        # 定义创建新测验和显示当前测验的列
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("Generate New Quiz")
+            
+            # 测验主题
+            quiz_topic = st.text_input("Enter quiz topic", key="quiz_topic",
+                                       help="E.g.: Newton's Laws of Motion, Python Programming Basics")
+            
+            # 测验配置
+            quiz_difficulty = st.select_slider(
+                "Quiz Difficulty",
+                options=["easy", "medium", "hard"],
+                value="medium"
+            )
+            
+            num_questions = st.slider("Number of Questions", min_value=3, max_value=15, value=5)
+            
+            question_types = st.multiselect(
+                "Question Types",
+                options=["multiple_choice", "true_false", "open_ended"],
+                default=["multiple_choice"],
+                help="Multiple choice: Select one correct answer; True/False: Evaluate statement; Open-ended: Write your own answer"
+            )
+            
+            # 生成测验按钮
+            generate_button = st.button("Generate Quiz")
+            
+            if generate_button and quiz_topic:
+                with st.spinner("Generating quiz..."):
+                    try:
+                        # 获取相关文档
+                        retriever = st.session_state.vector_store.get_retriever({"k": min(10, num_questions * 2)})
+                        docs = retriever.get_relevant_documents(quiz_topic)
+                        
+                        if not docs:
+                            st.warning(f"No content related to '{quiz_topic}' was found.")
+                        else:
+                            # 配置测验
+                            quiz_config = {
+                                "topic": quiz_topic,
+                                "difficulty": quiz_difficulty,
+                                "num_questions": num_questions,
+                                "question_types": question_types
+                            }
+                            
+                            # 生成测验
+                            quiz = st.session_state.quiz_generator.generate_quiz(docs, quiz_config)
+                            
+                            # 保存到会话状态
+                            st.session_state.current_quiz = quiz
+                            st.session_state.quiz_answers = {}
+                            st.session_state.quiz_submitted = False
+                            st.session_state.quiz_results = None
+                            
+                            # 重新加载页面以显示新测验
+                            st.rerun()
+                    
+                    except Exception as e:
+                        st.error(f"Error generating quiz: {str(e)}")
+        
+        # 显示当前测验
+        with col2:
+            if st.session_state.current_quiz:
+                st.subheader(f"Quiz: {st.session_state.current_quiz['topic']}")
+                st.markdown(f"**Difficulty**: {st.session_state.current_quiz['difficulty'].title()}")
+                st.markdown(f"**Total Questions**: {st.session_state.current_quiz['total_questions']}")
+                
+                # 如果测验已提交，显示重置按钮
+                if st.session_state.quiz_submitted:
+                    if st.button("Start New Attempt"):
+                        st.session_state.quiz_answers = {}
+                        st.session_state.quiz_submitted = False
+                        st.session_state.quiz_results = None
+                        st.rerun()
+                
+                # 如果测验未提交，显示问题
+                if not st.session_state.quiz_submitted:
+                    with st.form("quiz_form"):
+                        for i, question in enumerate(st.session_state.current_quiz["questions"]):
+                            st.markdown(f"### Question {i+1}")
+                            
+                            if question["type"] == "multiple_choice":
+                                st.markdown(f"**{question['question']}**")
+                                
+                                # 使用radio按钮显示选项
+                                st.session_state.quiz_answers[i] = st.radio(
+                                    f"Select answer for question {i+1}:",
+                                    options=question["options"],
+                                    key=f"q{i}_mc"
+                                )
+                                
+                            elif question["type"] == "true_false":
+                                st.markdown(f"**{question['statement']}**")
+                                
+                                # 使用radio按钮显示True/False选项
+                                st.session_state.quiz_answers[i] = st.radio(
+                                    f"Select answer for question {i+1}:",
+                                    options=["True", "False"],
+                                    key=f"q{i}_tf"
+                                )
+                                
+                            elif question["type"] == "open_ended":
+                                st.markdown(f"**{question['question']}**")
+                                
+                                # 使用文本区域输入回答
+                                st.session_state.quiz_answers[i] = st.text_area(
+                                    f"Your answer for question {i+1}:",
+                                    key=f"q{i}_oe",
+                                    height=100
+                                )
+                                
+                            st.markdown("---")
+                        
+                        # 提交按钮
+                        submit_quiz = st.form_submit_button("Submit Quiz")
+                        
+                        if submit_quiz:
+                            # 评分
+                            with st.spinner("Grading quiz..."):
+                                results = []
+                                total_score = 0
+                                max_score = len(st.session_state.current_quiz["questions"]) * 100
+                                
+                                for i, question in enumerate(st.session_state.current_quiz["questions"]):
+                                    user_answer = st.session_state.quiz_answers.get(i, "")
+                                    
+                                    if question["type"] == "multiple_choice":
+                                        correct = question["options"][question["correct_answer"]] == user_answer
+                                        score = 100 if correct else 0
+                                        feedback = question["explanation"]
+                                        result = {
+                                            "question_num": i + 1,
+                                            "correct": correct,
+                                            "score": score,
+                                            "feedback": feedback,
+                                            "user_answer": user_answer,
+                                            "correct_answer": question["options"][question["correct_answer"]]
+                                        }
+                                        
+                                    elif question["type"] == "true_false":
+                                        # 将字符串"True"/"False"转换为布尔值
+                                        user_bool = user_answer == "True"
+                                        correct = question["correct_answer"] == user_bool
+                                        score = 100 if correct else 0
+                                        feedback = question["explanation"]
+                                        result = {
+                                            "question_num": i + 1,
+                                            "correct": correct,
+                                            "score": score,
+                                            "feedback": feedback,
+                                            "user_answer": user_answer,
+                                            "correct_answer": "True" if question["correct_answer"] else "False"
+                                        }
+                                        
+                                    elif question["type"] == "open_ended":
+                                        # 使用LLM评估开放性问题
+                                        evaluation = st.session_state.quiz_generator.grade_open_answer(question, user_answer)
+                                        score = evaluation["score"]
+                                        feedback = evaluation["feedback"]
+                                        missing = ", ".join(evaluation["missing_keywords"]) if evaluation["missing_keywords"] else "None"
+                                        result = {
+                                            "question_num": i + 1,
+                                            "score": score,
+                                            "feedback": feedback,
+                                            "user_answer": user_answer,
+                                            "missing_keywords": missing,
+                                            "reference_answer": question["answer"]
+                                        }
+                                    
+                                    total_score += score
+                                    results.append(result)
+                                
+                                # 计算总分
+                                average_score = total_score / len(results)
+                                
+                                # 保存结果
+                                st.session_state.quiz_results = {
+                                    "results": results,
+                                    "total_score": total_score,
+                                    "average_score": average_score,
+                                    "max_score": max_score
+                                }
+                                
+                                st.session_state.quiz_submitted = True
+                                st.rerun()
+                
+                # 如果测验已提交，显示结果
+                else:
+                    if st.session_state.quiz_results:
+                        results = st.session_state.quiz_results
+                        
+                        # 显示总分
+                        st.markdown(f"### Your Score: {results['average_score']:.1f}%")
+                        st.progress(results['average_score'] / 100)
+                        
+                        # 根据分数给予评价
+                        if results['average_score'] >= 90:
+                            st.success("Excellent work! You've mastered this topic.")
+                        elif results['average_score'] >= 70:
+                            st.success("Good job! You have a solid understanding of this topic.")
+                        elif results['average_score'] >= 50:
+                            st.warning("You're on the right track, but might need more review.")
+                        else:
+                            st.error("You should spend more time studying this topic.")
+                        
+                        # 显示每个问题的详细结果
+                        st.markdown("### Detailed Results")
+                        for result in results["results"]:
+                            with st.expander(f"Question {result['question_num']}"):
+                                question = st.session_state.current_quiz["questions"][result['question_num']-1]
+                                
+                                if question["type"] == "multiple_choice":
+                                    st.markdown(f"**Question**: {question['question']}")
+                                    st.markdown(f"**Your answer**: {result['user_answer']}")
+                                    st.markdown(f"**Correct answer**: {result['correct_answer']}")
+                                    if result['correct']:
+                                        st.success(f"✓ Correct! Score: {result['score']}")
+                                    else:
+                                        st.error(f"✗ Incorrect. Score: {result['score']}")
+                                    st.markdown(f"**Explanation**: {result['feedback']}")
+                                    
+                                elif question["type"] == "true_false":
+                                    st.markdown(f"**Statement**: {question['statement']}")
+                                    st.markdown(f"**Your answer**: {result['user_answer']}")
+                                    st.markdown(f"**Correct answer**: {result['correct_answer']}")
+                                    if result['correct']:
+                                        st.success(f"✓ Correct! Score: {result['score']}")
+                                    else:
+                                        st.error(f"✗ Incorrect. Score: {result['score']}")
+                                    st.markdown(f"**Explanation**: {result['feedback']}")
+                                    
+                                elif question["type"] == "open_ended":
+                                    st.markdown(f"**Question**: {question['question']}")
+                                    st.markdown(f"**Your answer**: {result['user_answer']}")
+                                    st.markdown(f"**Score**: {result['score']}/100")
+                                    st.markdown(f"**Feedback**: {result['feedback']}")
+                                    st.markdown(f"**Missing keywords**: {result['missing_keywords']}")
+                                    with st.expander("Reference Answer"):
+                                        st.markdown(result["reference_answer"])
+        
+        # 显示测验指南和说明
+        with st.expander("Quiz Guidelines"):
+            st.markdown("""
+            ## How to Use the Quiz Feature
+            
+            1. **Generate a quiz** by entering a topic and configuring options
+            2. **Take the quiz** by answering all questions
+            3. **Submit your answers** to receive immediate feedback
+            4. **Review your results** with detailed explanations
+            
+            ### Question Types:
+            - **Multiple Choice**: Select one correct answer from four options
+            - **True/False**: Determine if a statement is true or false
+            - **Open-Ended**: Write your own answer, which will be evaluated based on relevance and completeness
+            
+            ### Difficulty Levels:
+            - **Easy**: Basic recall and simpler concepts
+            - **Medium**: Application of concepts and deeper understanding
+            - **Hard**: Analysis, synthesis, and complex problem-solving
+            """)
+
+# 标签5：学习强化（闪卡）
+# --- Tab 5 : Learning Reinforcement (Flashcards) ---------------------------
+with tab5:
+    st.header("🔄 Learning Reinforcement")
+
+    # ╭────────────────────────  前置检查  ───────────────────────╮
+    if not st.session_state.documents_added:
+        st.info("Please upload or load documents first before creating flashcards.")
+        st.stop()
+    if not os.environ.get("OPENAI_API_KEY"):
+        st.warning("Creating flashcards requires an OpenAI API key. Please provide one in the configuration.")
+        st.stop()
+    if not st.session_state.flashcard_generator:
+        st.warning("Flashcard module not initialized. Please ensure API key is correct and reload the knowledge base.")
+        st.stop()
+    # ╰──────────────────────────────────────────────────────────╯
+
+    # 创建 3 个子标签页
+    fc_tabs = st.tabs(["Create Flashcards", "Today's Review", "View All Decks"])
+
+    # ───────────────────────── Tab 1 · Create Flashcards ──────────────────────────
+    with fc_tabs[0]:
+        st.subheader("Create Flashcards")
+
+        flashcard_topic = st.text_input(
+            "Enter topic for flashcards",
+            key="flashcard_topic",
+            help="E.g.: Chemical Elements, American Presidents",
+        )
+
+        deck_name = st.text_input("Deck Name", value="My Knowledge Cards")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            complexity = st.select_slider(
+                "Complexity Level",
+                options=["basic", "medium", "advanced"],
+                value="medium",
+            )
+        with col2:
+            num_cards = st.slider("Number of Cards", min_value=5, max_value=30, value=10)
+
+        card_types = st.multiselect(
+            "Card Types",
+            options=["basic", "cloze"],
+            default=["basic"],
+            help="Basic: Question-answer format; Cloze: Fill-in-the-blank format",
+        )
+
+        if st.button("Create Flashcards") and flashcard_topic:
+            with st.spinner("Generating flashcards..."):
+                try:
+                    retriever = st.session_state.vector_store.get_retriever({"k": min(10, num_cards)})
+                    docs = retriever.get_relevant_documents(flashcard_topic)
+
+                    if not docs:
+                        st.warning(f"No content related to '{flashcard_topic}' was found.")
+                    else:
+                        config = {
+                            "card_types": card_types,
+                            "num_cards": num_cards,
+                            "complexity": complexity,
+                            "deck_name": deck_name,
+                        }
+                        flashcards = st.session_state.flashcard_generator.generate_flashcards(docs, config)
+
+                        st.success(
+                            f"Successfully created {flashcards['total_cards']} flashcards in deck '{flashcards['deck_name']}'!"
+                        )
+
+                        with st.expander("Preview Flashcards"):
+                            for i, card in enumerate(flashcards["cards"][:5]):
+                                st.markdown(f"**Card {i+1}:**")
+                                if card["type"] == "basic":
+                                    st.markdown(f"**Front**: {card['front']}")
+                                    st.markdown(f"**Back**: {card['back']}")
+                                else:  # cloze
+                                    st.markdown(f"**Text**: {card['front']}")
+                                    st.markdown(f"**Answer**: {card['back']}")
+                                st.markdown(f"**Tags**: {', '.join(card['tags'])}")
+                                st.markdown("---")
+                            if len(flashcards["cards"]) > 5:
+                                st.info(f"{len(flashcards['cards']) - 5} more cards created but not shown here.")
+                except Exception as e:
+                    st.error(f"Error generating flashcards: {e}")
+
+    # ──────────────────────── Tab 2 · Today's Review ─────────────────────────────
+    with fc_tabs[1]:
+        st.subheader("Today's Review")
+
+        if st.button("Load Today's Cards"):
+            with st.spinner("Loading cards due for review..."):
+                try:
+                    due_cards = st.session_state.flashcard_generator.get_cards_due_today()
+                except Exception as e:
+                    st.error(f"Error loading review cards: {e}")
+                    due_cards = []
+
+                if due_cards:
+                    st.success(f"Loaded {len(due_cards)} cards for review")
+                    st.session_state.review_cards = due_cards
+                    st.session_state.review_index = 0
+                    st.session_state.show_answer = False
+                    st.rerun()
+                else:
+                    st.info("No cards due for review today. Great job staying on top of your studies!")
+
+        # 显示复习界面
+        if "review_cards" in st.session_state and st.session_state.review_cards:
+            progress = (st.session_state.review_index + 1) / len(st.session_state.review_cards)
+            st.progress(progress)
+            st.markdown(
+                f"Card **{st.session_state.review_index + 1} / {len(st.session_state.review_cards)}**"
+            )
+
+            current = st.session_state.review_cards[st.session_state.review_index]
+            st.markdown("### Question")
+            st.markdown(f"**{current['front']}**")
+
+            if st.button("Show Answer"):
+                st.session_state.show_answer = True
+
+            if st.session_state.show_answer:
+                st.markdown("### Answer")
+                st.markdown(f"**{current['back']}**")
+
+                st.markdown("### How well did you know this?")
+                cols = st.columns(5)
+                ratings = [1, 2, 3, 4, 5]
+                labels = ["Forgot", "Hard", "Good", "Easy", "Perfect"]
+                for col, rating, label in zip(cols, ratings, labels):
+                    if col.button(f"{rating} - {label}"):
+                        st.session_state.flashcard_generator.update_card_review(current["id"], rating)
+                        st.session_state.review_index = (st.session_state.review_index + 1) % len(
+                            st.session_state.review_cards
+                        )
+                        st.session_state.show_answer = False
+                        st.rerun()
+
+            if st.button("Reset Review Session"):
+                for k in ["review_index", "review_cards", "show_answer"]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+
+    # ──────────────────────── Tab 3 · View All Decks ────────────────────────────
+    with fc_tabs[2]:
+        st.subheader("Manage Flashcard Decks")
+        if st.button("Load All Decks"):
+            with st.spinner("Loading flashcard decks..."):
+                try:
+                    db_path = os.path.join(Path(__file__).parent.parent, "data", "flashcards.sqlite")
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        SELECT deck_name, COUNT(*)
+                        FROM flashcards
+                        GROUP BY deck_name
+                        ORDER BY deck_name
+                        """
+                    )
+                    decks = cursor.fetchall()
+                    conn.close()
+
+                    if not decks:
+                        st.info("No flashcard decks found. Create some flashcards first!")
+                    else:
+                        for deck_name, card_count in decks:
+                            with st.expander(f"{deck_name} ({card_count} cards)"):
+                                col1, col2 = st.columns(2)
+                                if col1.button("Export CSV", key=f"csv_{deck_name}"):
+                                    csv_data = st.session_state.flashcard_generator.export_to_csv(deck_name)
+                                    st.download_button(
+                                        "Download CSV",
+                                        data=csv_data,
+                                        file_name=f"{deck_name.replace(' ', '_')}.csv",
+                                        mime="text/csv",
+                                    )
+                                if col2.button("Export Anki", key=f"anki_{deck_name}"):
+                                    apkg_b64 = st.session_state.flashcard_generator.export_to_anki(deck_name)
+                                    binary = base64.b64decode(apkg_b64)
+                                    st.download_button(
+                                        "Download Anki Deck",
+                                        data=binary,
+                                        file_name=f"{deck_name.replace(' ', '_')}.apkg",
+                                        mime="application/octet-stream",
+                                    )
+                except Exception as e:
+                    st.error(f"Error loading flashcard decks: {e}")
+
+    
+    # Display usage guide
+    with st.expander("Using Flashcards for Effective Learning"):
+        st.markdown("""
+        ## Spaced Repetition Learning
+        
+        Spaced repetition is a learning technique that incorporates increasing intervals of time between subsequent review of previously learned material to exploit the psychological spacing effect.
+        
+        ### How it works:
+        
+        1. When you review a card, you rate how well you knew the answer.
+        2. Cards you find difficult will appear more frequently.
+        3. Cards you know well will appear less frequently, with increasing intervals.
+        
+        ### Rating Scale:
+        
+        - **1 (Forgot)**: Complete blackout - you couldn't recall the information at all.
+        - **2 (Hard)**: You recalled with significant difficulty or incorrectly.
+        - **3 (Good)**: You recalled correctly but with some effort.
+        - **4 (Easy)**: You recalled easily with minimal hesitation.
+        - **5 (Perfect)**: Perfect recall with no effort.
+        
+        ### Tips for effective flashcard learning:
+        
+        - Review cards daily rather than cramming
+        - Create clear, concise cards with one concept per card
+        - Use both basic and cloze deletion cards for variety
+        - Add tags to organize related concepts
+        - Export to apps like Anki for mobile learning
+        """)
+
+
 st.markdown("---")
 st.markdown("*SmartNote AI - Knowledge at your fingertips* 🚀")
+
+
+
