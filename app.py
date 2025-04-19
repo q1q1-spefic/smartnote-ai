@@ -6,8 +6,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # Try to load API key from Streamlit secrets first
-if 'OPENAI_API_KEY' in st.secrets:
-    os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
+if "OPENAI_API_KEY" in st.secrets:
+    openai_api_key = st.secrets["OPENAI_API_KEY"]
 # Then try to load from local .env file
 else:
     load_dotenv()
