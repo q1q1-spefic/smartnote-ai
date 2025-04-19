@@ -68,10 +68,7 @@ with st.sidebar:
     st.header("⚙️ Configuration")
     
     # API密钥设置 - 修改此部分
-    api_key = st.text_input("OpenAI API Key",
-                           value=os.environ.get("OPENAI_API_KEY", ""),
-                           type="password",
-                           help="Leave blank if deployed on Streamlit Cloud with secrets configured")
+
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
     
